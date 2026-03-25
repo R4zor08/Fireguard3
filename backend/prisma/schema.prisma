@@ -1,0 +1,221 @@
+// Prisma Schema for FireGuard3
+// This defines the database models and their relationships
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// User model for authentication and role-based access
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      String   @default("USER")
+  avatarUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  alerts    Alert[]
+  contacts  Contact[]
+  devices   Device[]
+  notifications Notification[]
+
+  @@map("users")
+}
+
+// Alert model for fire detection monitoring
+model Alert {
+  id          String      @id @default(uuid())
+  deviceId    String
+  temperature Float
+  smokeLevel  Float
+  status      String
+  location    String?
+  notes       String?
+  timestamp   DateTime    @default(now())
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([status])
+  @@index([timestamp])
+  @@map("alerts")
+}
+
+// Contact model for emergency contacts
+model Contact {
+  id        String   @id @default(uuid())
+  name      String
+  number    String
+  type      String   // official, emergency
+  role      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([type])
+  @@map("contacts")
+}
+
+model Household {
+  id               String   @id @default(uuid())
+  householdCode    String   @unique
+  ownerName        String
+  address          String
+  contactNumber    String
+  emergencyContact String?
+  riskLevel        String   @default("low")
+  lastIncident     DateTime?
+  lastInspection   DateTime?
+  safetyScore      Int?
+  fireExtinguishers Int?    @default(0)
+  smokeDetectors   Int?     @default(0)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  devices          Device[]
+
+  @@index([riskLevel])
+  @@map("households")
+}
+
+model Device {
+  id              String   @id
+  name            String?
+  ownerName       String?
+  address         String?
+  latitude        Float?
+  longitude       Float?
+  status          String   @default("normal")
+  isOnline        Boolean  @default(true)
+  batteryLevel    Int?
+  signalStrength  Int?
+  firmwareVersion String?
+  lastSeen        DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  householdId     String?
+  household       Household? @relation(fields: [householdId], references: [id], onDelete: SetNull)
+
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  readings        DeviceReading[]
+
+  @@index([householdId])
+  @@index([status])
+  @@index([isOnline])
+  @@map("devices")
+}
+
+model DeviceReading {
+  id          String   @id @default(uuid())
+  deviceId    String
+  temperature Float?
+  smoke       Float?
+  gas         Float?
+  timestamp   DateTime @default(now())
+
+  device      Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId])
+  @@index([timestamp])
+  @@map("device_readings")
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  type      String
+  title     String
+  message   String
+  priority  String   @default("low")
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([type])
+  @@index([priority])
+  @@index([read])
+  @@map("notifications")
+}
+
+model NetworkNode {
+  id             String   @id
+  type           String
+  name           String
+  status         String   @default("online")
+  latency        Int?     @default(0)
+  connections    Int      @default(0)
+  signalStrength Int?     @default(0)
+  lastSeen       DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  events         NetworkEvent[]
+
+  @@index([type])
+  @@index([status])
+  @@map("network_nodes")
+}
+
+model NetworkEvent {
+  id          String   @id @default(uuid())
+  timestamp   DateTime @default(now())
+  type        String
+  details     String
+  status      String
+
+  nodeId      String
+  node        NetworkNode @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId])
+  @@index([timestamp])
+  @@index([type])
+  @@map("network_events")
+}
+
+model FireIncident {
+  id          String   @id @default(uuid())
+  title       String
+  severity    String
+  status      String
+  latitude    Float
+  longitude   Float
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([severity])
+  @@index([status])
+  @@index([startedAt])
+  @@map("fire_incidents")
+}
+
+// Role stored as String for SQLite compatibility
+// Values: USER, ADMIN
+
+// Alert status stored as String for SQLite compatibility
+// Values: SAFE, WARNING, ALERT
+
+// Contact type stored as String for SQLite compatibility
+// Values: official, emergency
